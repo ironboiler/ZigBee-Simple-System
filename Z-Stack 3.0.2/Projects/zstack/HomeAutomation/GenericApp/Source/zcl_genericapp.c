@@ -291,7 +291,8 @@ void zclGenericApp_Init( byte task_id )
 #ifdef LCD_SUPPORTED
   HalLcdWriteString ( (char *)sDeviceName, HAL_LCD_LINE_3 );
 #endif  // LCD_SUPPORTED
-
+  
+  bdb_StartCommissioning(BDB_COMMISSIONING_MODE_NWK_FORMATION|BDB_COMMISSIONING_MODE_FINDING_BINDING);     // For set up a Network
 
 }
 
