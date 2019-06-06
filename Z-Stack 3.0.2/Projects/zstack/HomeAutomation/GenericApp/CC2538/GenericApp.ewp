@@ -3256,6 +3256,12 @@
             <name>$PROJ_DIR$\..\Source\OSAL_GenericApp.c</name>
         </file>
         <file>
+            <name>$PROJ_DIR$\..\Source\printf.c</name>
+        </file>
+        <file>
+            <name>$PROJ_DIR$\..\Source\printf.h</name>
+        </file>
+        <file>
             <name>$PROJ_DIR$\..\Source\zcl_genericapp.c</name>
         </file>
         <file>

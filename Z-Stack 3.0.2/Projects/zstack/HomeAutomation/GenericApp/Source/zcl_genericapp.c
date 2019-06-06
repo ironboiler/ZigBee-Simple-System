@@ -91,6 +91,8 @@
 #include "hal_led.h"
 #include "hal_key.h"
 
+/*USER*/
+#include "printf.h"
 /*********************************************************************
  * MACROS
  */
