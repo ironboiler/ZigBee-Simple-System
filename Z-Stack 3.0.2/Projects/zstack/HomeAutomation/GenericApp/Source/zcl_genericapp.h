@@ -64,7 +64,7 @@ extern "C"
 #define GENERICAPP_ENDPOINT            8
 // Added to include ZLL Target functionality
 #define GENERICAPP_NUM_GRPS            2
-
+#define GENERICAPP_CLUSTERID          0x2000
 
 // Application Events
 #define GENERICAPP_MAIN_SCREEN_EVT          0x0001
