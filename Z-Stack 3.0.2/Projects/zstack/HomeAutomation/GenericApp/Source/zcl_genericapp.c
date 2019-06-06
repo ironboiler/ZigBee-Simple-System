@@ -163,6 +163,9 @@ static uint8 zclGenericApp_ProcessInDiscAttrsExtRspCmd( zclIncomingMsg_t *pInMsg
 
 static void zclSampleApp_BatteryWarningCB( uint8 voltLevel);
 
+static void ZDO_Register( uint8 *pTask_id );
+static void ZDO_ProcessAnnceRsp( zdoIncomingMsg_t *inMsg );
+static void ZDO_ProcessMsgCBs( zdoIncomingMsg_t *inMsg );
 /*********************************************************************
  * STATUS STRINGS
  */
@@ -174,6 +177,7 @@ const char sSwBDBMode[]     = "SW2: Start BDB";
 char sSwHelp[]             = "SW4: Help       ";  // last character is * if NWK open
 #endif
 
+extern const uint8* devStates_str[];
 /*********************************************************************
  * ZCL General Profile Callback table
  */
@@ -261,7 +265,10 @@ void zclGenericApp_Init( byte task_id )
   // Register the application's command list
   zcl_registerCmdList( GENERICAPP_ENDPOINT, zclCmdsArraySize, zclGenericApp_Cmds );
 #endif
-
+  
+  // Register the ZDO for display joined device's addrdess
+  ZDO_Register( &zclGenericApp_TaskID );
+  
   // Register low voltage NV memory protection application callback
   RegisterVoltageWarningCB( zclSampleApp_BatteryWarningCB );
 
@@ -310,37 +317,42 @@ uint16 zclGenericApp_event_loop( uint8 task_id, uint16 events )
   afIncomingMSGPacket_t *MSGpkt;
 
   (void)task_id;  // Intentionally unreferenced parameter
-
+  
   if ( events & SYS_EVENT_MSG )
   {
     while ( (MSGpkt = (afIncomingMSGPacket_t *)osal_msg_receive( zclGenericApp_TaskID )) )
     {
       switch ( MSGpkt->hdr.event )
       {
-        case ZCL_INCOMING_MSG:
-          // Incoming ZCL Foundation command/response messages
-          zclGenericApp_ProcessIncomingMsg( (zclIncomingMsg_t *)MSGpkt );
-          break;
-
-        case KEY_CHANGE:
-          zclGenericApp_HandleKeys( ((keyChange_t *)MSGpkt)->state, ((keyChange_t *)MSGpkt)->keys );
-          break;
-
-        case ZDO_STATE_CHANGE:
-          zclGenericApp_NwkState = (devStates_t)(MSGpkt->hdr.status);
-
-          // now on the network
-          if ( (zclGenericApp_NwkState == DEV_ZB_COORD) ||
-               (zclGenericApp_NwkState == DEV_ROUTER)   ||
-               (zclGenericApp_NwkState == DEV_END_DEVICE) )
-          {
-            giGenAppScreenMode = GENERIC_MAINMODE;
-            zclGenericApp_LcdDisplayUpdate();
-          }
-          break;
-
-        default:
-          break;
+      case ZCL_INCOMING_MSG:
+        // Incoming ZCL Foundation command/response messages
+        zclGenericApp_ProcessIncomingMsg( (zclIncomingMsg_t *)MSGpkt );
+        break;
+        
+      case KEY_CHANGE:
+        zclGenericApp_HandleKeys( ((keyChange_t *)MSGpkt)->state, ((keyChange_t *)MSGpkt)->keys );
+        break;
+        
+      case ZDO_STATE_CHANGE:
+        zclGenericApp_NwkState = (devStates_t)(MSGpkt->hdr.status);
+        
+        // now on the network
+        if ( (zclGenericApp_NwkState == DEV_ZB_COORD) ||
+            (zclGenericApp_NwkState == DEV_ROUTER)   ||
+              (zclGenericApp_NwkState == DEV_END_DEVICE) )
+        {
+          giGenAppScreenMode = GENERIC_MAINMODE;
+          zclGenericApp_LcdDisplayUpdate();
+        }
+        break;
+        
+      // For Device Announce
+      case ZDO_CB_MSG:
+        ZDO_ProcessMsgCBs( (zdoIncomingMsg_t *)MSGpkt );
+        break;
+        
+      default:
+        break;
       }
 
       // Release the memory
@@ -938,5 +950,53 @@ static uint8 zclGenericApp_ProcessInDiscAttrsExtRspCmd( zclIncomingMsg_t *pInMsg
 
 /****************************************************************************
 ****************************************************************************/
+static void ZDO_Register( uint8 *pTask_id )
+{
+  uint8 task_id = *pTask_id;
+  ZDO_RegisterForZDOMsg( task_id, Device_annce );
+}
 
+const uint8* devStates_str[]=
+{
+  "DEV_HOLD",                                // Initialized - not started automatically
+  "DEV_INIT",                                // Initialized - not connected to anything
+  "DEV_NWK_DISC",                            // Discovering PAN's to join
+  "DEV_NWK_JOINING",                         // Joining a PAN
+  "DEV_NWK_SEC_REJOIN_CURR_CHANNEL",         // ReJoining a PAN in secure mode scanning in current channel, only for end devices
+  "DEV_END_DEVICE_UNAUTH",                   // Joined but not yet authenticated by trust center
+  "DEV_END_DEVICE",                          // Started as device after authentication
+  "DEV_ROUTER",                              // Device joined, authenticated and is a router
+  "DEV_COORD_STARTING",                      // Started as Zigbee Coordinator
+  "DEV_ZB_COORD",                            // Started as Zigbee Coordinator
+  "DEV_NWK_ORPHAN",                          // Device has lost information about its parent..
+  "DEV_NWK_KA",                              // Device is sending KeepAlive message to its parent
+  "DEV_NWK_BACKOFF",                         // Device is waiting before trying to rejoin
+  "DEV_NWK_SEC_REJOIN_ALL_CHANNEL",          // ReJoining a PAN in secure mode scanning in all channels, only for end devices
+  "DEV_NWK_TC_REJOIN_CURR_CHANNEL",          // ReJoining a PAN in Trust center mode scanning in current channel, only for end devices
+  "DEV_NWK_TC_REJOIN_ALL_CHANNEL"            // ReJoining a PAN in Trust center mode scanning in all channels, only for end devices
+};
 
+static void ZDO_ProcessAnnceRsp( zdoIncomingMsg_t *inMsg )
+{
+  ZDO_DeviceAnnce_t Rsp;
+  ZDO_ParseDeviceAnnce( inMsg,&Rsp );
+
+  uint16* ext= (uint16*) Rsp.extAddr;
+  printf("\r\n%s:%04X%04X%04X%04X,%04X\r\n",
+         ((Rsp.capabilities&0x01) == CAPINFO_ALTPANCOORD) ? "COORD" :
+         (((Rsp.capabilities&0x02) == CAPINFO_DEVICETYPE_FFD) ? "FFD" : "RFD")
+         ,ext[3],ext[2],ext[1],ext[0],Rsp.nwkAddr);
+}
+
+static void ZDO_ProcessMsgCBs( zdoIncomingMsg_t *inMsg )
+{
+  switch ( inMsg->clusterID )
+  {
+  case Device_annce:
+    ZDO_ProcessAnnceRsp( inMsg );
+    break;
+    
+  default:
+    break;
+  }
+}
