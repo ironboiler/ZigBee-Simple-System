@@ -5,5 +5,6 @@
 
 void Factory_New(void);
 void Relay_Control(cmd_form *cmd_msg);
+void Read_Temp(cmd_form *cmd_msg);
 
 #endif
