@@ -3247,6 +3247,12 @@
     <group>
         <name>Application</name>
         <file>
+            <name>$PROJ_DIR$\..\Source\cmd_control.c</name>
+        </file>
+        <file>
+            <name>$PROJ_DIR$\..\Source\cmd_control.h</name>
+        </file>
+        <file>
             <name>$PROJ_DIR$\..\Source\cmd_uart.c</name>
         </file>
         <file>
