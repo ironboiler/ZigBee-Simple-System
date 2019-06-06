@@ -1,6 +1,8 @@
 #include "cmd_uart.h"
 #include "printf.h"
 #include "OSAL.h"
+#include "cmd_control.h"
+
 
 uint8 RxBuffer[CMD_BUFF_MAX] = {0};
 uint8 uart_state = CHECK_C;
